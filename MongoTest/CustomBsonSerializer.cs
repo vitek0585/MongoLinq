@@ -9,7 +9,7 @@ using MongoDB.Bson.Serialization.Serializers;
 
 namespace MongoTest
 {
-    public class SampleSerialize : SerializerBase<Sample>, IBsonDocumentSerializer//,IBsonArraySerializer
+    public class SampleSerialize : SerializerBase<Sample>, IBsonDocumentSerializer, IBsonArraySerializer
     {
         public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, Sample value)
         {
@@ -21,7 +21,7 @@ namespace MongoTest
             writer.WriteString(value.A);
             writer.WriteName("b");
             writer.WriteStartArray();
-            
+
             for (int i = 0; i < value.B.Count; i++)
             {
                 writer.WriteStartDocument();
@@ -31,7 +31,7 @@ namespace MongoTest
                 writer.WriteString(value.B[i].A);
                 writer.WriteEndDocument();
             }
-           
+
             writer.WriteEndArray();
             writer.WriteEndDocument();
         }
@@ -57,18 +57,53 @@ namespace MongoTest
 
         public bool TryGetItemSerializationInfo(out BsonSerializationInfo serializationInfo)
         {
-            serializationInfo = new BsonSerializationInfo(String.Empty, this,typeof(IEnumerable<Sample>));
+            serializationInfo = new BsonSerializationInfo(String.Empty, this, typeof(IEnumerable<Sample>));
             return true;
         }
 
         public bool TryGetMemberSerializationInfo(string memberName, out BsonSerializationInfo serializationInfo)
         {
             var propertyType = typeof(Sample).GetProperty(memberName).PropertyType;
-            serializationInfo = new BsonSerializationInfo(memberName.ToLower(),new ArraySerializer<Sample>(), propertyType);
+            serializationInfo = new BsonSerializationInfo(memberName.ToLower(), new ValueSerialize(), typeof(object));
             return true;
         }
     }
 
+    class ValueSerialize : IBsonSerializer, IBsonDocumentSerializer,IBsonArraySerializer
+    {
+        object IBsonSerializer.Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+        {
+            return Deserialize(context, args);
+        }
+
+        public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, Sample value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Sample Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+        {
+
+            return new Sample();
+        }
+
+        public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, object value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Type ValueType { get; }
+
+        public bool TryGetItemSerializationInfo(out BsonSerializationInfo serializationInfo)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool TryGetMemberSerializationInfo(string memberName, out BsonSerializationInfo serializationInfo)
+        {
+            throw new NotImplementedException();
+        }
+    }
 
     public class Sample
     {
@@ -89,7 +124,7 @@ namespace MongoTest
             writer.WriteString(value.Id);
             writer.WriteName(nameof(value.Data));
             writer.WriteStartArray();
-            
+
             writer.WriteEndArray();
             writer.WriteEndDocument();
         }

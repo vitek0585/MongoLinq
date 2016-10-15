@@ -16,6 +16,8 @@ namespace EntityFramework
         {
             public const string CONSTANT = "1";
 
+            public const string DataSourceType = "Contact";
+
             public const string CONSTANT1 = "21";
 
             public string _ID = "_id";

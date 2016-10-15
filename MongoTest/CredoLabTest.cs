@@ -19,54 +19,57 @@ namespace MongoTest
     {
         private ITestOutputHelper _helper;
 
-        private IMongoCollection<MobileData> _items;
+        private IMongoCollection<BsonDocument> _items;
         private IMongoCollection<Sample> _samples;
+
+        private IMongoCollection<MobileData> _mobileDatas;
 
         public CredoLabTest(ITestOutputHelper helper)
         {
+
             JsonWriterSettings.Defaults.Indent = true;
             BsonSerializer.RegisterSerializer(typeof(MobileData), new CustomBsonSerializer());
             BsonSerializer.RegisterSerializer(typeof(Sample), new SampleSerialize());
 
             _helper = helper;
             var mongoClientSettings = MongoClientSettings.FromUrl(new MongoUrl("mongodb://localhost"));
+            mongoClientSettings.ClusterConfigurator =
+                builder => builder.Subscribe<CommandStartedEvent>(c => _helper.WriteLine(c.Command.ToString()));
             var mongoClient = new MongoClient(mongoClientSettings);
 
-            _items = mongoClient.GetDatabase("Test").GetCollection<MobileData>("credolab");
+            _items = mongoClient.GetDatabase("Test").GetCollection<BsonDocument>("credolab");
+            _mobileDatas = mongoClient.GetDatabase("Test").GetCollection<MobileData>("credolab");
             _samples = mongoClient.GetDatabase("Test").GetCollection<Sample>("serialize");
-            //BsonClassMap.RegisterClassMap<MobileData>(map =>
-            //{
-            //    map.AutoMap();
-            //    map.SetIgnoreExtraElements(true);
-            //    map.GetMemberMap(x => x.Id).SetElementName("_id");
-            //    map.GetMemberMap(x => x.Data);
-            //});
 
-            //BsonClassMap.RegisterClassMap<Element>(map =>
-            //{
-            //    map.AutoMap();
-            //    map.SetIgnoreExtraElements(true);
-            //    map.GetMemberMap(x => x.Name);
-            //    map.GetMemberMap(x => x.Value).Getter()SetElementName();
-            //});
         }
 
         [Fact]
         public void SelectSample()
         {
             //var itemsJson = _samples.Aggregate().Match(s => s.A.StartsWith("M")).ToList();
-            //var itemsJson = _samples.AsQueryable()..Where(r=>r.B.Count>0).ToList();
+            var itemsJson = _samples.AsQueryable().Where(r => r.B.Count > 0).ToList();
         }
 
 
         [Fact]
         public void Select()
         {
-            var countCantacts = _items.AsQueryable().ToList().SelectMany(item => item.Data)
-            .First(d=>d.Value==nameof(CredoAppConstants.Contact)).ChildElements.Count;
+            var projectionDefinition = Builders<BsonDocument>.Projection.Combine(
+                    new BsonDocument() { { "_id", "$Data.DataSourceType" } });// count=b["C"].AsBsonArray.Count});
+            var countCantacts =
+                _items.Aggregate()
+                    .Unwind(f => f["Data"])
+                    .Match(d => d["Data.DataSourceType"] == "Contact").ToList();
+
+            var enumerable = _mobileDatas.AsQueryable().ToList().First().Data
+                .First(e => e.Value == CredoAppConstants.Contact.DATA_SOURCE_TYPE_NAME)
+                .ChildElements.SelectMany(e => e.ChildElements).Where(e1 => e1.Name == CredoAppConstants.Contact.PHOTO_ID);
+
+            //.Group(new BsonDocument() { { "_id", "DataSourceType" }, {"count",new BsonDocument("$sum","C")} }).ToList();
+            //.First(d=>d.Value==nameof(CredoAppConstants.Contact)).ChildElements.Count;
             //.First(element => element.Name == nameof(CredoAppConstants.Contact)).ChildElements.Count;
 
-            Assert.Equal(59,countCantacts);
+            //Assert.Equal(59, countCantacts);
         }
 
         [Fact]
@@ -82,30 +85,25 @@ namespace MongoTest
         private void CreateAssembly(Dictionary<string, IEnumerable<string>> names)
         {
             AssemblyName assName = new AssemblyName("CredoLab.Mobile");
+            assName.Version = new Version(0, 0, 1);
             var assBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assName, AssemblyBuilderAccess.Save);
             var moduleBuilder = assBuilder.DefineDynamicModule("CredoLabModule", "credolab.mobile.dll");
 
             var typeBuilder = moduleBuilder.DefineType("CredoLab.Mobile.CredoAppConstants", TypeAttributes.Public | TypeAttributes.Class, typeof(object), new Type[] { });
-
+            var dataSourceTypeField = typeBuilder.DefineField("Data_Source_Type".ToUpper(), typeof(string), FieldAttributes.Public | FieldAttributes.Literal | FieldAttributes.Static);
+            dataSourceTypeField.SetConstant("DataSourceType");
+            var dataField = typeBuilder.DefineField("Data".ToUpper(), typeof(string), FieldAttributes.Public | FieldAttributes.Literal | FieldAttributes.Static);
+            dataField.SetConstant("Data");
             foreach (var keyValuePair in names)
             {
                 var nestedType = typeBuilder.DefineNestedType($"{keyValuePair.Key}", TypeAttributes.NestedPublic | TypeAttributes.Class, typeof(object), new Type[] { });
-                //var defineTypeInitializer = nestedType.DefineConstructor(MethodAttributes.SpecialName|MethodAttributes.Static,
-                //CallingConventions.Any, null);
-                //var ilGenerator = defineTypeInitializer.GetILGenerator();
-
+                var dataSourceName = nestedType.DefineField("Data_Source_Type_Name".ToUpper(), typeof(string), FieldAttributes.Public | FieldAttributes.Literal | FieldAttributes.Static);
+                dataSourceName.SetConstant(keyValuePair.Key);
                 foreach (var constantName in keyValuePair.Value)
                 {
                     var fieldBuilder = nestedType.DefineField(constantName.ToUpper(), typeof(string), FieldAttributes.Public | FieldAttributes.Literal | FieldAttributes.Static);
                     fieldBuilder.SetConstant(constantName);
-                    //ilGenerator.Emit(OpCodes.Ldarg_0);
-                    //ilGenerator.Emit(OpCodes.Ldstr, constantName);
-                    //ilGenerator.Emit(OpCodes.Stfld, fieldBuilder);
-
                 }
-                //ilGenerator.Emit(OpCodes.Call);
-                //ilGenerator.Emit(OpCodes.Nop);
-                //ilGenerator.Emit(OpCodes.Ret);
                 nestedType.CreateType();
             }
             typeBuilder.CreateType();
