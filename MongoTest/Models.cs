@@ -45,4 +45,13 @@ namespace MongoTest
         public BsonValue UserId { get; set; }
         public string Number { get; set; }
     }
+
+    public class Country
+    {
+        //[BsonId]
+        public int Id { get; set; }
+
+        [BsonElement("country")]
+        public string CountryName { get; set; }
+    }
 }

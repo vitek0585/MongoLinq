@@ -63,13 +63,10 @@ namespace MongoTest
 
             var enumerable = _mobileDatas.AsQueryable().ToList().First().Data
                 .First(e => e.Value == CredoAppConstants.Contact.DATA_SOURCE_TYPE_NAME)
-                .ChildElements.SelectMany(e => e.ChildElements).Where(e1 => e1.Name == CredoAppConstants.Contact.PHOTO_ID);
+                .ChildElements.SelectMany(e => e.ChildElements).Where(e1 => e1.Name == CredoAppConstants.Contact.PHOTO_ID 
+                && e1.Value == "True");
 
-            //.Group(new BsonDocument() { { "_id", "DataSourceType" }, {"count",new BsonDocument("$sum","C")} }).ToList();
-            //.First(d=>d.Value==nameof(CredoAppConstants.Contact)).ChildElements.Count;
-            //.First(element => element.Name == nameof(CredoAppConstants.Contact)).ChildElements.Count;
 
-            //Assert.Equal(59, countCantacts);
         }
 
         [Fact]
